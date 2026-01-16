@@ -1,0 +1,73 @@
+version: '3.8'
+
+services:
+  # 1. The Database (Replacement for RDS) 🛢️
+  db:
+    image: mysql:5.7
+    container_name: stranger_db
+    environment:
+      MYSQL_ROOT_PASSWORD: strangerpassword
+      MYSQL_DATABASE: stranger_db
+    ports:
+      - "3306:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+    restart: always
+
+  # 2. The Backend API 🧠
+  backend:
+    build: ./backend
+    container_name: stranger_backend
+    ports:
+      - "5000:5000"
+    environment:
+      - DB_HOST=db                # Points to the 'db' service above
+      - DB_USER=root
+      - DB_PASSWORD=strangerpassword
+      - DB_NAME=stranger_db
+    depends_on:
+      - db
+    restart: always
+
+  # 3. The Frontend UI 🎨
+  frontend:
+    build: ./frontend
+    container_name: stranger_frontend
+    ports:
+      - "80:80"
+    restart: always
+
+  # --- MONITORING TOOLS ---
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: cadvisor
+    ports:
+      - "8080:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    depends_on:
+      - cadvisor
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=strangerpassword
+    depends_on:
+      - prometheus
+
+volumes:
+  db_data: # Persist DB data even if container restarts
